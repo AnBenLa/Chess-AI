@@ -71,7 +71,7 @@ class Chess(Game):
         return allowed_moves
 
     def finished(self, current_state, current_player):
-        if not self.get_valid_actions(current_state, current_player):
+        if len(self.get_valid_actions(current_state, current_player)) == 0:
             return True
         return False
 

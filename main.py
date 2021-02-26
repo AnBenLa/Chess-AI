@@ -20,8 +20,38 @@ Game = Chess()
 board_dimension = 800
 offset_x = 50
 offset_y = 100
-recursive_enemy = True
+recursive_enemy = False
+random_enemy = True
 recursive_max_depth = 3
+
+
+def random_move(current_state, original_player, current_player):
+    valid_moves = Game.get_valid_actions(current_state, current_player)
+    print('valid moves found')
+    max_index = random.randint(0, len(valid_moves) - 1)
+    print('valid move at index: ', max_index)
+    print('new board: \n', valid_moves[max_index])
+    original_position_x = -1
+    original_position_y = -1
+    new_position_x = -1
+    new_position_y = -1
+
+    if Game.finished(current_state, current_player):
+        print('Game finished')
+        return Move(-1, -1, -1, -1)
+    else:
+        print('Game not finished yet!')
+
+    for x in range(0, 8):
+        for y in range(0, 8):
+            if current_state[x][y] != valid_moves[max_index][x][y]:
+                if valid_moves[max_index][x][y] == 0:
+                    original_position_x = x
+                    original_position_y = y
+                else:
+                    new_position_x = x
+                    new_position_y = y
+    return Move(original_position_x, original_position_y, new_position_x, new_position_y)
 
 
 def recursive_evaluation(current_state, original_player, current_player, depth = 1):
@@ -278,7 +308,18 @@ class ChessWindow(QMainWindow):
                         print('Evaluating best move')
                         best_move = recursive_evaluation(Game.get_board(), current_player, current_player)
                         print('Best move found')
+                        print(best_move)
                         self.move_figure(best_move)
+                    else:
+                        self.pc_enemy_text.setText('Game finished!')
+                        print('Game finished!')
+                elif random_enemy:
+                    if not Game.finished(Game.get_board(), current_player):
+                        print('Random move search')
+                        move = random_move(Game.get_board(), current_player, current_player)
+                        print('Random move found')
+                        print(move)
+                        self.move_figure(move)
                     else:
                         self.pc_enemy_text.setText('Game finished!')
                         print('Game finished!')
