@@ -20,9 +20,10 @@ Game = Chess()
 board_dimension = 800
 offset_x = 50
 offset_y = 100
-recursive_enemy = False
-random_enemy = True
-recursive_max_depth = 3
+recursive_enemy = True
+random_enemy = False
+max_recursive_depth = 2
+figure_grading = [1, 5, 3, 3, 100, 10]
 
 
 def random_move(current_state, original_player, current_player):
@@ -55,33 +56,50 @@ def random_move(current_state, original_player, current_player):
 
 
 def recursive_evaluation(current_state, original_player, current_player, depth = 1):
+    global max_recursive_depth
+
+    if depth == 1 and max_recursive_depth == 2:
+        pawn_count = 0
+        for x in range(0, 8):
+            for y in range(0, 8):
+                if np.sign(current_state[x][y]) == original_player and current_state[x][y] != 0:
+                    pawn_count += 1
+        if pawn_count < 5:
+            max_recursive_depth = 3
+
     if Game.finished(current_state, current_player):
-        print('Game finished')
+        print('Game finished at depth: ', depth)
         if depth == 1:
             return Move(-1, -1, -1, -1)
-        return Game.reward(current_state, original_player) * 100
+        reward = Game.reward(current_state, original_player) * 100
+        print('Reward: ', reward)
+        return reward
 
-    if depth > recursive_max_depth:
+    if depth > max_recursive_depth:
         difference = 0
         for x in range(0, 8):
             for y in range(0, 8):
                 if np.sign(current_state[x][y]) == original_player and current_state[x][y] != 0:
-                    difference += np.abs(current_state[x][y])
+                    difference += figure_grading[np.abs(current_state[x][y]) - 1]
                 elif current_state[x][y] != 0:
-                    difference -= np.abs(current_state[x][y])
-
+                    difference -= figure_grading[np.abs(current_state[x][y]) - 1]
         return difference
 
     valid_moves = Game.get_valid_actions(current_state, current_player)
     move_grading = []
     max_grading = -10000
+    min_grading = 10000
     max_index = 0
+    min_index = 0
     total_grading = 0
 
     for i in range(len(valid_moves)):
         grading = recursive_evaluation(valid_moves[i], original_player, -current_player, depth + 1)
         move_grading.append(grading)
         total_grading += move_grading[i]
+        if move_grading[i] < min_grading:
+            min_grading = move_grading[i]
+            min_index = i
         if move_grading[i] > max_grading:
             max_grading = move_grading[i]
             max_index = i
@@ -97,6 +115,7 @@ def recursive_evaluation(current_state, original_player, current_player, depth =
         new_position_x = -1
         new_position_y = -1
         print('Move grading: ', move_grading)
+
         for x in range(0, 8):
             for y in range(0, 8):
                 if current_state[x][y] != valid_moves[max_index][x][y]:
@@ -109,7 +128,10 @@ def recursive_evaluation(current_state, original_player, current_player, depth =
         return Move(original_position_x, original_position_y, new_position_x, new_position_y)
 
     else:
-        return total_grading
+        if current_player == original_player:
+            return max_grading
+        else:
+            return min_grading
 
 
 class Move:
@@ -124,7 +146,12 @@ class Move:
         global current_player
 
         new_board = deepcopy(Game.get_board())
-        new_board[self.x_new][self.y_new] = new_board[self.x][self.y]
+        if current_player == 1 and self.y_new == 7 and new_board[self.x][self.y] == 1:
+            new_board[self.x_new][self.y_new] = 6
+        elif current_player == -1 and self.y_new == 0 and new_board[self.x][self.y] == -1:
+            new_board[self.x_new][self.y_new] = -6
+        else:
+            new_board[self.x_new][self.y_new] = new_board[self.x][self.y]
         new_board[self.x][self.y] = 0
 
         Game.set_board(new_board)
@@ -177,7 +204,16 @@ class DragFigure(QSvgWidget):
             valid_moves = Game.get_valid_actions(Game.get_board(), current_player)
 
             new_board = deepcopy(Game.get_board())
-            new_board[x_new][y_new] = Game.get_board()[x][y]
+
+            pawn_to_queen = False
+            if current_player == 1 and y_new == 7 and Game.get_board()[x][y] == 1:
+                new_board[x_new][y_new] = 6
+                pawn_to_queen = True
+            elif current_player == -1 and y_new == 0 and Game.get_board()[x][y] == -1:
+                new_board[x_new][y_new] = -6
+                pawn_to_queen = True
+            else:
+                new_board[x_new][y_new] = Game.get_board()[x][y]
             new_board[x][y] = 0
 
             valid_move = False
@@ -200,7 +236,8 @@ class DragFigure(QSvgWidget):
                 move.execute_move()
 
                 self.setGeometry(goal_position.x(), goal_position.y(), self.figure_size, self.figure_size)
-
+                if pawn_to_queen:
+                    super().load('images/Chess_qlt45.svg')
                 tmp = self.parent().parent().figures
                 tmp[move.x_new][move.y_new] = tmp[move.x][move.y]
                 tmp[move.x][move.y] = 0
@@ -230,6 +267,7 @@ class ChessWindow(QMainWindow):
         self.chessboard = QSvgWidget('images/Chess_Board.svg')
         self.text = QLabel()
         self.pc_enemy_text = QLabel()
+        self.win_text = QLabel()
         self.figures = [[0]*8 for i in range(8)]
         self.initUI()
         self.timer = QTimer()
@@ -249,13 +287,17 @@ class ChessWindow(QMainWindow):
             self.text.setText('Current player: Red')
 
 
-        self.text.setFont(QFont('SansSerif', 30))
+        self.text.setFont(QFont('SansSerif', 25))
         self.text.setGeometry(QRect(board_dimension + offset_x + 50, offset_y, 500, 100))
         self.text.setParent(widget)
 
+        self.win_text.setFont(QFont('SansSerif', 25))
+        self.win_text.setGeometry(QRect(board_dimension + offset_x + 50, offset_y + 100, 500, 100))
+        self.win_text.setParent(widget)
+
         if recursive_enemy:
             self.pc_enemy_text.setText('PC Enemy: ON')
-            self.pc_enemy_text.setFont(QFont('SansSerif', 30))
+            self.pc_enemy_text.setFont(QFont('SansSerif', 25))
             self.pc_enemy_text.setGeometry(QRect(board_dimension + offset_x + 50, offset_y + 50, 500, 100))
 
         self.pc_enemy_text.setParent(widget)
@@ -301,28 +343,45 @@ class ChessWindow(QMainWindow):
                     new_figure.setParent(widget)
 
     def recursive_enemy(self):
-        if not Game.finished(Game.get_board(), current_player):
-            if current_player == -1:
-                if recursive_enemy:
-                    if not Game.finished(Game.get_board(), current_player):
-                        print('Evaluating best move')
-                        best_move = recursive_evaluation(Game.get_board(), current_player, current_player)
-                        print('Best move found')
-                        print(best_move)
-                        self.move_figure(best_move)
+        if current_player == -1:
+            if recursive_enemy:
+                print('Enemy turn')
+                if not Game.finished(Game.get_board(), current_player):
+                    print('Evaluating best move')
+                    best_move = recursive_evaluation(Game.get_board(), current_player, current_player)
+                    print('Best move found')
+                    print(best_move)
+                    self.move_figure(best_move)
+                else:
+                    reward_ai = Game.reward(Game.get_board(), current_player)
+                    reward_human = Game.reward(Game.get_board(), -current_player)
+                    self.pc_enemy_text.setText('Game finished!')
+                    if reward_ai == 0 and reward_human == 0:
+                        self.win_text.setText('Winner: Draw')
+                    elif reward_ai == -1:
+                        self.win_text.setText('Gratulation, Sieg!')
                     else:
-                        self.pc_enemy_text.setText('Game finished!')
-                        print('Game finished!')
-                elif random_enemy:
-                    if not Game.finished(Game.get_board(), current_player):
-                        print('Random move search')
-                        move = random_move(Game.get_board(), current_player, current_player)
-                        print('Random move found')
-                        print(move)
-                        self.move_figure(move)
+                        self.win_text.setText('Schade, verloren.')
+                    print('Game finished!')
+            elif random_enemy:
+                if not Game.finished(Game.get_board(), current_player):
+                    print('Random move search')
+                    move = random_move(Game.get_board(), current_player, current_player)
+                    print('Random move found')
+                    print(move)
+                    self.move_figure(move)
+                else:
+                    reward_ai = Game.reward(Game.get_board(), current_player)
+                    reward_human = Game.reward(Game.get_board(), -current_player)
+                    self.pc_enemy_text.setText('Game finished!')
+                    if reward_ai == 0 and reward_human == 0:
+                        self.win_text.setText('Winner: Draw')
+                    elif reward_ai == -1:
+                        self.win_text.setText('Winner: Human')
                     else:
-                        self.pc_enemy_text.setText('Game finished!')
-                        print('Game finished!')
+                        self.win_text.setText('Winner: AI')
+                    self.pc_enemy_text.setText('Game finished!')
+
 
     def move_figure(self, move):
         global current_player
@@ -332,7 +391,15 @@ class ChessWindow(QMainWindow):
             valid_moves = Game.get_valid_actions(Game.get_board(), current_player)
 
             new_board = deepcopy(Game.get_board())
-            new_board[move.x_new][move.y_new] = Game.get_board()[move.x][move.y]
+            pawn_to_queen = False
+            if current_player == 1 and move.y_new == 7 and new_board[move.x][move.y] == 1:
+                new_board[move.x_new][move.y_new] = 6
+                pawn_to_queen = True
+            elif current_player == -1 and move.y_new == 0 and new_board[move.x][move.y] == -1:
+                new_board[move.x_new][move.y_new] = -6
+                pawn_to_queen = True
+            else:
+                new_board[move.x_new][move.y_new] = new_board[move.x][move.y]
             new_board[move.x][move.y] = 0
 
             valid_move = False
@@ -349,6 +416,9 @@ class ChessWindow(QMainWindow):
                     #self.parent().childAt(goal_position).move(-10000, -1000)
 
                 move.execute_move()
+
+                if pawn_to_queen:
+                    self.figures[move.x][move.y].load('images/Chess_qlt45.svg')
 
                 self.figures[move.x][move.y].setGeometry(goal_position.x(), goal_position.y(), self.figure_size, self.figure_size)
 

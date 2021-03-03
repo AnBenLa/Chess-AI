@@ -4,17 +4,35 @@ from copy import copy, deepcopy
 
 
 class Chess(Game):
+    last_board = [
+        [2, 1, 0, 0, 0, 0, -1, -2],
+        [3, 1, 0, 0, 0, 0, -1, -3],
+        [4, 1, 0, 0, 0, 0, -1, -4],
+        [5, 1, 0, 0, 0, 0, -1, -5],
+        [6, 1, 0, 0, 0, 0, -1, -6],
+        [4, 1, 0, 0, 0, 0, -1, -4],
+        [3, 1, 0, 0, 0, 0, -1, -3],
+        [2, 1, 0, 0, 0, 0, -1, -2]
+    ]
 
     board = [
         [2, 1, 0, 0, 0, 0, -1, -2],
         [3, 1, 0, 0, 0, 0, -1, -3],
         [4, 1, 0, 0, 0, 0, -1, -4],
-        [5, 1, 0, 0, 0, 0, -1, -6],
-        [6, 1, 0, 0, 0, 0, -1, -5],
+        [5, 1, 0, 0, 0, 0, -1, -5],
+        [6, 1, 0, 0, 0, 0, -1, -6],
         [4, 1, 0, 0, 0, 0, -1, -4],
         [3, 1, 0, 0, 0, 0, -1, -3],
         [2, 1, 0, 0, 0, 0, -1, -2]
     ]
+
+# rochade: king not in check, twer and king not move, fields inbetween not under attack
+# then king two steps towards tower, tower jumps over king
+
+# only between pawns, if pawn moves two steps ahead, a pawn that could have attacked him inbetween can do so
+# 0  0  1  0  0      0  0  0  0  0     0  0  0  0  0
+# 0  0  0  0  0      0  0  0  0  0     0  0  -1 0  0
+# 0  -1 0  0  0      0  -1 1  0  0     0  0  0  0  0
 
     def __init__(self):
         super().__init__()
@@ -26,6 +44,7 @@ class Chess(Game):
         return self.board
 
     def set_board(self, new_board):
+        self.last_board = self.board
         self.board = new_board
 
     def get_string_representation(self, current_state):
@@ -35,49 +54,37 @@ class Chess(Game):
 
     def get_valid_actions(self, current_state, current_player, depth=1):
         allowed_moves = []
-        if (depth == 1):
-            t = 5;
         for x in range(0, 8):
             for y in range(0, 8):
                 piece = current_state[x][y]
                 if np.sign(piece) == current_player and piece != 0:
                     if abs(piece) == 1:
-                        #print('Trying to process pawn move at depth: ', depth)
                         allowed_moves.extend(self.pawn_moves(current_player, x, y, current_state, depth))
-                        #print('Pawn move processed at depth: ', depth)
                     elif abs(piece) == 2:
-                        #print('Trying to process Rook move at depth: ', depth)
                         allowed_moves.extend(self.rook_moves(current_player, x, y, current_state, depth))
-                        #print('Rook move processed at depth: ', depth)
                     elif abs(piece) == 3:
-                        #print('Trying to process Knight move at depth: ', depth)
                         allowed_moves.extend(self.knight_moves(current_player, x, y, current_state, depth))
-                        #print('Knight move processed at depth: ', depth)
                     elif abs(piece) == 4:
-                        #print('Trying to process Bishop move at depth: ', depth)
                         allowed_moves.extend(self.bishop_moves(current_player, x, y, current_state, depth))
-                        #print('Bishop move processed at depth: ', depth)
                     elif abs(piece) == 5:
-                        #print('Trying to process King move at depth: ', depth)
                         allowed_moves.extend(self.king_moves(current_player, x, y, current_state, depth))
-                        #print('King move processed at depth: ', depth)
                     elif abs(piece) == 6:
-                        #print('Trying to process Queen move at depth: ', depth)
                         allowed_moves.extend(self.queen_moves(current_player, x, y, current_state, depth))
-                        #print('Queen move processed at depth: ', depth)
-        #print('finished processing moves at depth: ', depth)
-        if(depth == 1):
-            t = 5;
         return allowed_moves
 
     def finished(self, current_state, current_player):
-        if len(self.get_valid_actions(current_state, current_player)) == 0:
+        possible_actions = self.get_valid_actions(current_state, current_player)
+        if len(possible_actions) == 0:
             return True
         return False
 
     def reward(self, current_state, current_player):
-        if self.in_check(current_state, current_state):
+        in_check = self.in_check(current_player, current_state, 1)
+        enemy_in_check = self.in_check(-current_player, current_state, 1)
+        if in_check:
             return -1
+        elif enemy_in_check:
+            return 1
         return 0
 
     def pawn_moves(self, player, x, y, current_state, depth=0):
@@ -91,12 +98,15 @@ class Chess(Game):
 
             if not self.in_check(player, board, depth):
                 possible_states.append(board)
-        if 8 > y + player > -1:
+        if -1 < y + player < 8:
             # move straight ahead
 
             if current_state[x][y + player] == 0:
                 board = deepcopy(current_state)
-                board[x][y + player] = board[x][y]
+                if y + player == 0 or y + player == 7:
+                    board[x][y + player] = 6 * player
+                else:
+                    board[x][y + player] = board[x][y]
                 board[x][y] = 0
                 if not self.in_check(player, board, depth):
                     possible_states.append(board)
@@ -104,14 +114,20 @@ class Chess(Game):
             # move one step ahead and one to the right
             if x + 1 < 8 and np.sign(current_state[x + 1][y + player]) != player and current_state[x + 1][y + player] != 0:
                 board = deepcopy(current_state)
-                board[x + 1][y + player] = board[x][y]
+                if y + player == 0 or y + player == 7:
+                    board[x + 1][y + player] = 6 * player
+                else:
+                    board[x + 1][y + player] = board[x][y]
                 board[x][y] = 0
                 if not self.in_check(player, board, depth):
                     possible_states.append(board)
             # move one step ahead and one to the left
             if x - 1 > - 1 and np.sign(current_state[x - 1][y + player]) != player and current_state[x - 1][y + player] != 0:
                 board = deepcopy(current_state)
-                board[x - 1][y + player] = board[x][y]
+                if y + player == 0 or y + player == 7:
+                    board[x - 1][y + player] = 6 * player
+                else:
+                    board[x - 1][y + player] = board[x][y]
                 board[x][y] = 0
                 if not self.in_check(player, board, depth):
                     possible_states.append(board)
@@ -312,13 +328,7 @@ class Chess(Game):
                 # if current piece is the king check if he is in check
                 if current_state[x][y] == 5 * player:
                     possible_enemy_actions = self.get_valid_actions(deepcopy(current_state), -player, depth + 1)
-                    #print('Finished checking if in check at depth ', depth)
-                    #print('Checking Actions')
                     for i in range(len(possible_enemy_actions)):
-                        #print('Checking Action ', i)
                         if possible_enemy_actions[i][x][y] != 5 * player:
-                            #print('Result: in check!')
                             return True
-                        #print('Action checked')
-        #print('Result: no in check!')
         return False
