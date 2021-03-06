@@ -1,5 +1,7 @@
-from Game import Game
 import numpy as np
+import time
+from Game import Game
+from multiprocessing.pool import ThreadPool
 from copy import copy, deepcopy
 
 
@@ -36,9 +38,13 @@ class Chess(Game):
 
     def __init__(self):
         super().__init__()
+        self.pool = ThreadPool(processes=4)
 
     def start_state(self):
         return self.board
+
+    def get_last_board(self):
+        return self.last_board
 
     def get_board(self):
         return self.board
@@ -54,22 +60,50 @@ class Chess(Game):
 
     def get_valid_actions(self, current_state, current_player, depth=1):
         allowed_moves = []
+        parallel = False
+        start_time = time.time()
         for x in range(0, 8):
             for y in range(0, 8):
                 piece = current_state[x][y]
                 if np.sign(piece) == current_player and piece != 0:
                     if abs(piece) == 1:
-                        allowed_moves.extend(self.pawn_moves(current_player, x, y, current_state, depth))
+                        if parallel:
+                            async_result = self.pool.apply_async(self.pawn_moves, (current_player, x, y, current_state, depth))
+                            allowed_moves.extend(async_result.get())
+                        else:
+                            allowed_moves.extend(self.pawn_moves(current_player, x, y, current_state, depth))
                     elif abs(piece) == 2:
-                        allowed_moves.extend(self.rook_moves(current_player, x, y, current_state, depth))
+                        if parallel:
+                            async_result = self.pool.apply_async(self.rook_moves, (current_player, x, y, current_state, depth))
+                            allowed_moves.extend(async_result.get())
+                        else:
+                            allowed_moves.extend(self.rook_moves(current_player, x, y, current_state, depth))
                     elif abs(piece) == 3:
-                        allowed_moves.extend(self.knight_moves(current_player, x, y, current_state, depth))
+                        if parallel:
+                            async_result = self.pool.apply_async(self.knight_moves, (current_player, x, y, current_state, depth))
+                            allowed_moves.extend(async_result.get())
+                        else:
+                            allowed_moves.extend(self.knight_moves(current_player, x, y, current_state, depth))
                     elif abs(piece) == 4:
-                        allowed_moves.extend(self.bishop_moves(current_player, x, y, current_state, depth))
+                        if parallel:
+                            async_result = self.pool.apply_async(self.bishop_moves, (current_player, x, y, current_state, depth))
+                            allowed_moves.extend(async_result.get())
+                        else:
+                            allowed_moves.extend(self.bishop_moves(current_player, x, y, current_state, depth))
                     elif abs(piece) == 5:
-                        allowed_moves.extend(self.king_moves(current_player, x, y, current_state, depth))
+                        if parallel:
+                            async_result = self.pool.apply_async(self.king_moves, (current_player, x, y, current_state, depth))
+                            allowed_moves.extend(async_result.get())
+                        else:
+                            allowed_moves.extend(self.king_moves(current_player, x, y, current_state, depth))
                     elif abs(piece) == 6:
-                        allowed_moves.extend(self.queen_moves(current_player, x, y, current_state, depth))
+                        if parallel:
+                            async_result = self.pool.apply_async(self.queen_moves, (current_player, x, y, current_state, depth))
+                            allowed_moves.extend(async_result.get())
+                        else:
+                            allowed_moves.extend(self.queen_moves(current_player, x, y, current_state, depth))
+        #if depth == 1:
+            #print("--- %s seconds ---" % (time.time() - start_time))
         return allowed_moves
 
     def finished(self, current_state, current_player):
@@ -112,7 +146,7 @@ class Chess(Game):
                     possible_states.append(board)
 
             # move one step ahead and one to the right
-            if x + 1 < 8 and np.sign(current_state[x + 1][y + player]) != player and current_state[x + 1][y + player] != 0:
+            if -1 < x + 1 < 8 and np.sign(current_state[x + 1][y + player]) != player and current_state[x + 1][y + player] != 0:
                 board = deepcopy(current_state)
                 if y + player == 0 or y + player == 7:
                     board[x + 1][y + player] = 6 * player
@@ -121,14 +155,35 @@ class Chess(Game):
                 board[x][y] = 0
                 if not self.in_check(player, board, depth):
                     possible_states.append(board)
+
+            # move one step and one to the right after en passant
+            if -1 < x + 1 < 8 and np.sign(current_state[x + 1][y]) != player and np.abs(current_state[x + 1][y]) == 1 \
+                    and np.sign(self.last_board[x + 1][y + 2 * player]) != player and np.abs(self.last_board[x + 1][y + 2 * player]) == 1:
+                board = deepcopy(current_state)
+                board[x + 1][y + player] = board[x][y]
+                board[x][y] = 0
+                board[x + 1][y] = 0
+                if not self.in_check(player, board, depth):
+                    possible_states.append(board)
+
             # move one step ahead and one to the left
-            if x - 1 > - 1 and np.sign(current_state[x - 1][y + player]) != player and current_state[x - 1][y + player] != 0:
+            if -1 < x - 1 < 8 and np.sign(current_state[x - 1][y + player]) != player and current_state[x - 1][y + player] != 0:
                 board = deepcopy(current_state)
                 if y + player == 0 or y + player == 7:
                     board[x - 1][y + player] = 6 * player
                 else:
                     board[x - 1][y + player] = board[x][y]
                 board[x][y] = 0
+                if not self.in_check(player, board, depth):
+                    possible_states.append(board)
+
+            # move one step and one to the right after en passant
+            if -1 < x + 1 < 8 and np.sign(current_state[x - 1][y]) != player and np.abs(current_state[x - 1][y]) == 1 \
+                    and np.sign(self.last_board[x - 1][y + 2 * player]) != player and np.abs(self.last_board[x - 1][y + 2 * player]) == 1:
+                board = deepcopy(current_state)
+                board[x - 1][y + player] = board[x][y]
+                board[x][y] = 0
+                board[x - 1][y] = 0
                 if not self.in_check(player, board, depth):
                     possible_states.append(board)
 

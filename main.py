@@ -25,34 +25,47 @@ random_enemy = False
 max_recursive_depth = 2
 figure_grading = [1, 5, 3, 3, 100, 10]
 
-
-def random_move(current_state, original_player, current_player):
-    valid_moves = Game.get_valid_actions(current_state, current_player)
-    print('valid moves found')
-    max_index = random.randint(0, len(valid_moves) - 1)
-    print('valid move at index: ', max_index)
-    print('new board: \n', valid_moves[max_index])
+def derive_move_from_boards(old_board, new_board, current_player):
     original_position_x = -1
     original_position_y = -1
     new_position_x = -1
     new_position_y = -1
 
-    if Game.finished(current_state, current_player):
-        print('Game finished')
-        return Move(-1, -1, -1, -1)
-    else:
-        print('Game not finished yet!')
+    original_position_x2 = -1
+    original_position_y2 = -1
+    new_position_x2 = -1
+    new_position_y2 = -1
 
     for x in range(0, 8):
         for y in range(0, 8):
-            if current_state[x][y] != valid_moves[max_index][x][y]:
-                if valid_moves[max_index][x][y] == 0:
-                    original_position_x = x
-                    original_position_y = y
-                else:
-                    new_position_x = x
-                    new_position_y = y
-    return Move(original_position_x, original_position_y, new_position_x, new_position_y)
+            if old_board[x][y] != new_board[x][y] and old_board[x][y] != 0 and np.sign(old_board[x][y]) == current_player:
+                original_position_x = x
+                original_position_y = y
+            if old_board[x][y] != new_board[x][y] and new_board[x][y] != 0 and np.sign(new_board[x][y]) == current_player:
+                new_position_x = x
+                new_position_y = y
+            if old_board[x][y] != new_board[x][y] and old_board[x][y] != 0 and np.sign(old_board[x][y]) != current_player:
+                original_position_x2 = x
+                original_position_y2 = y
+
+    return Move(original_position_x, original_position_y, new_position_x, new_position_y, original_position_x2,
+                original_position_y2, new_position_x2, new_position_y2)
+
+
+def random_move(current_state, current_player):
+    if Game.finished(current_state, current_player):
+        print('Game finished')
+        return Move(-1, -1, -1, -1, -1, -1, -1, -1)
+    else:
+        print('Game not finished yet!')
+
+    valid_moves = Game.get_valid_actions(current_state, current_player)
+    print('valid moves found')
+    max_index = random.randint(0, len(valid_moves) - 1)
+    print('valid move at index: ', max_index)
+    print('new board: \n', valid_moves[max_index])
+
+    return derive_move_from_boards(current_state, valid_moves[max_index], current_player)
 
 
 def recursive_evaluation(current_state, original_player, current_player, depth = 1):
@@ -65,7 +78,7 @@ def recursive_evaluation(current_state, original_player, current_player, depth =
                 if np.sign(current_state[x][y]) == original_player and current_state[x][y] != 0:
                     pawn_count += 1
         if pawn_count < 5:
-            max_recursive_depth = 3
+            max_recursive_depth = 1
 
     if Game.finished(current_state, current_player):
         print('Game finished at depth: ', depth)
@@ -110,22 +123,8 @@ def recursive_evaluation(current_state, original_player, current_player, depth =
                 max_index = i
 
     if depth == 1:
-        original_position_x = -1
-        original_position_y = -1
-        new_position_x = -1
-        new_position_y = -1
         print('Move grading: ', move_grading)
-
-        for x in range(0, 8):
-            for y in range(0, 8):
-                if current_state[x][y] != valid_moves[max_index][x][y]:
-                    if valid_moves[max_index][x][y] == 0:
-                        original_position_x = x
-                        original_position_y = y
-                    else:
-                        new_position_x = x
-                        new_position_y = y
-        return Move(original_position_x, original_position_y, new_position_x, new_position_y)
+        return derive_move_from_boards(current_state, valid_moves[max_index], current_player)
 
     else:
         if current_player == original_player:
@@ -135,17 +134,33 @@ def recursive_evaluation(current_state, original_player, current_player, depth =
 
 
 class Move:
-    def __init__(self, x, y, x_new, y_new):
+    def __init__(self, x, y, x_new, y_new, x2, y2, x2_new, y2_new):
         self.x = x
         self.y = y
         self.x_new = x_new
         self.y_new = y_new
+        self.x2 = x2
+        self.y2 = y2
+        self.x2_new = x2_new
+        self.y2_new = y2_new
 
     def execute_move(self):
         global Game
         global current_player
 
+        new_board = self.execute_move_on_board()
+
+        Game.set_board(new_board)
+        current_player *= -1
+
+    def execute_move_on_board(self):
         new_board = deepcopy(Game.get_board())
+
+        if self.x2_new != -1 and self.y2_new != -1:
+            new_board[self.x2_new][self.y2_new] = new_board[self.x2][self.y2]
+
+        new_board[self.x2][self.y2] = 0
+
         if current_player == 1 and self.y_new == 7 and new_board[self.x][self.y] == 1:
             new_board[self.x_new][self.y_new] = 6
         elif current_player == -1 and self.y_new == 0 and new_board[self.x][self.y] == -1:
@@ -153,9 +168,7 @@ class Move:
         else:
             new_board[self.x_new][self.y_new] = new_board[self.x][self.y]
         new_board[self.x][self.y] = 0
-
-        Game.set_board(new_board)
-        current_player *= -1
+        return new_board
 
 
 class DragFigure(QSvgWidget):
@@ -199,22 +212,34 @@ class DragFigure(QSvgWidget):
             x_new = int(np.floor((goal.x() - offset_x) / self.figure_size))
             y_new = int(np.floor((goal.y() - offset_y) / self.figure_size))
 
-            move = Move(x, y, x_new, y_new)
-
-            valid_moves = Game.get_valid_actions(Game.get_board(), current_player)
-
+            old_board = deepcopy(Game.get_last_board())
             new_board = deepcopy(Game.get_board())
 
+            if old_board[x + 1][y + 2 * current_player] == -current_player and new_board[x + 1][y] == -current_player:
+                move = Move(x, y, x_new, y_new, x + 1, y, -1, -1)
+            elif old_board[x - 1][y + 2 * current_player] == -current_player and new_board[x - 1][y] == -current_player:
+                move = Move(x, y, x_new, y_new, x - 1, y, -1, -1)
+            else:
+                move = Move(x, y, x_new, y_new, x_new, y_new, -1, -1)
+
+            valid_moves = Game.get_valid_actions(new_board, current_player)
+
+
             pawn_to_queen = False
-            if current_player == 1 and y_new == 7 and Game.get_board()[x][y] == 1:
-                new_board[x_new][y_new] = 6
+            if -1 < move.x2_new < 8 and -1 < move.y2_new < 8:
+                new_board[move.x2_new][move.y2_new] = new_board[move.x2][move.y2]
+            else:
+                new_board[move.x2][move.y2] = 0
+
+            if current_player == 1 and move.y_new == 7 and new_board[move.x][move.y] == 1:
+                new_board[move.x_new][move.y_new] = 6
                 pawn_to_queen = True
-            elif current_player == -1 and y_new == 0 and Game.get_board()[x][y] == -1:
-                new_board[x_new][y_new] = -6
+            elif current_player == -1 and move.y_new == 0 and new_board[move.x][move.y] == -1:
+                new_board[move.x_new][move.y_new] = -6
                 pawn_to_queen = True
             else:
-                new_board[x_new][y_new] = Game.get_board()[x][y]
-            new_board[x][y] = 0
+                new_board[move.x_new][move.y_new] = new_board[move.x][move.y]
+            new_board[move.x][move.y] = 0
 
             valid_move = False
             for action in valid_moves:
@@ -224,14 +249,15 @@ class DragFigure(QSvgWidget):
 
             if valid_move:
                 current_board = Game.get_board()
-                goal_value = current_board[move.x_new][move.y_new]
+                if move.x2 != -1 and move.y2 != -1:
+                    goal_value = current_board[move.x2][move.y2]
+                    if np.sign(goal_value) != current_player and goal_value != 0:
+                        tmp = self.parent().parent().figures
+                        tmp[move.x2][move.y2].move(-10000, -1000)
+                        tmp[move.x2][move.y2] = 0
+                        print('Removed piece on new position')
+
                 goal_position = QPoint(move.x_new * self.figure_size + offset_x, move.y_new * self.figure_size + offset_y)
-                if np.sign(goal_value) != current_player and goal_value != 0:
-                    tmp = self.parent().parent().figures
-                    tmp[move.x_new][move.y_new].move(-10000, -1000)
-                    print('Removed piece on new position')
-                    #removed_piece = self.parent().childAt(goal_position)
-                    #removed_piece.move(-10000, -1000)
 
                 move.execute_move()
 
@@ -350,7 +376,8 @@ class ChessWindow(QMainWindow):
                     print('Evaluating best move')
                     best_move = recursive_evaluation(Game.get_board(), current_player, current_player)
                     print('Best move found')
-                    print(best_move)
+                    print('From: ', best_move.x, best_move.y, ', To:', best_move.x_new, best_move.y_new)
+                    print('From: ', best_move.x2, best_move.y2, ', To:', best_move.x2_new, best_move.y2_new)
                     self.move_figure(best_move)
                 else:
                     reward_ai = Game.reward(Game.get_board(), current_player)
@@ -382,7 +409,6 @@ class ChessWindow(QMainWindow):
                         self.win_text.setText('Winner: AI')
                     self.pc_enemy_text.setText('Game finished!')
 
-
     def move_figure(self, move):
         global current_player
         global Game
@@ -392,6 +418,12 @@ class ChessWindow(QMainWindow):
 
             new_board = deepcopy(Game.get_board())
             pawn_to_queen = False
+
+            if -1 < move.x2_new < 8 and -1 < move.y2_new < 8:
+                new_board[move.x2_new][move.y2_new] = new_board[move.x2][move.y2]
+            elif -1 < move.x2 < 8 and -1 < move.y2 < 8:
+                new_board[move.x2][move.y2] = 0
+
             if current_player == 1 and move.y_new == 7 and new_board[move.x][move.y] == 1:
                 new_board[move.x_new][move.y_new] = 6
                 pawn_to_queen = True
@@ -405,16 +437,16 @@ class ChessWindow(QMainWindow):
             valid_move = False
             for action in valid_moves:
                 if action == new_board:
-                    print('Valid Move!')
                     valid_move = True
 
             if valid_move:
-                goal_value = Game.get_board()[move.x_new][move.y_new]
-                goal_position = QPoint(move.x_new * self.figure_size + offset_x, move.y_new * self.figure_size + offset_y)
-                if np.sign(goal_value) != current_player and goal_value != 0:
-                    self.figures[move.x_new][move.y_new].move(-10000, -1000)
-                    #self.parent().childAt(goal_position).move(-10000, -1000)
+                if move.x2 != -1 and move.y2 != -1:
+                    goal_value = Game.get_board()[move.x2][move.y2]
+                    if np.sign(goal_value) != current_player and goal_value != 0:
+                        self.figures[move.x2][move.y2].move(-10000, -1000)
+                        self.figures[move.x2][move.y2] = 0
 
+                goal_position = QPoint(move.x_new * self.figure_size + offset_x, move.y_new * self.figure_size + offset_y)
                 move.execute_move()
 
                 if pawn_to_queen:
@@ -461,8 +493,6 @@ def main():
     network = None
 
 
-
-
     global board_dimension
     global offset_x
     global offset_y
@@ -496,127 +526,6 @@ def main():
 
     # exist if window is closed
     sys.exit(app.exec_())
-
-
-def out_of_bounds(move):
-    return move.x > 7 or move.x < 0 or move.y > 7 or move.y < 0 or move.x_new > 7 or move.x_new < 0 or move.y_new > 7 or move.y_new < 0
-
-
-def validate_move(player, move):
-    if out_of_bounds(move):
-        return False
-    # todo scharade?
-    global Game
-    global current_player
-
-    piece = Game.get_board()[move.x][move.y]
-    goal = Game.get_board()[move.x_new][move.y_new]
-
-    allowed_move = False
-    if np.sign(piece) == player and (np.sign(goal) != player or goal == 0):
-
-        # test if currently in check
-        check = in_check(player)
-
-        if abs(piece) == 1:
-            allowed_move = pawn_move(player, move)
-        elif abs(piece) == 2:
-            allowed_move = rook_move(player, move)
-        elif abs(piece) == 3:
-            allowed_move = knight_move(player, move)
-        elif abs(piece) == 4:
-            allowed_move = bishop_move(player, move)
-        elif abs(piece) == 5:
-            allowed_move = king_move(player, move)
-        elif abs(piece) == 6:
-            allowed_move = queen_move(player, move)
-
-        if check and allowed_move:
-            # check if still in check after move
-            still_check = in_check(player)
-            if still_check:
-                return False
-
-    return allowed_move
-
-
-def in_check(player):
-    # check if in check
-
-    return False
-
-
-def pawn_move(player, move):
-    diff_x = move.x_new - move.x
-    diff_y = move.y_new - move.y
-
-    if (move.x == move.x_new and move.y_new - move.y == player and Game.get_board()[move.x_new][move.y_new] == 0) or \
-            (np.absolute(move.y - move.y_new) == 1 and move.x_new - move.x == player and \
-             np.sign(Game.get_board()[move.x_new][move.y_new]) == -player):
-        return True
-    else:
-        return False
-
-
-def knight_move(player, move):
-    diff_x = move.x_new - move.x
-    diff_y = move.y_new - move.y
-    if (abs(diff_x) == 2 and abs(diff_y) == 1) or (abs(diff_y) == 2 and abs(diff_x) == 1):
-        if Game.get_board()[move.x_new][move.y_new] == 0 or np.sign(Game.get_board()[move.x_new][move.y_new]) != player:
-            return True
-    return False
-
-
-def rook_move(player, move):
-    diff_x = move.x_new - move.x
-    diff_y = move.y_new - move.y
-    if diff_x == 0 or diff_y == 0:
-        x = np.sign(diff_x)
-        y = np.sign(diff_y)
-        if diff_x != 0:
-            for i in range(1, abs(diff_x)):
-                if Game.get_board()[move.x + i * x][move.y] != 0:
-                    return False
-        if diff_y != 0:
-            for i in range(1, abs(diff_y)):
-                if Game.get_board()[move.x][move.y + i * y] != 0:
-                    return False
-        if Game.get_board()[move.x_new][move.y_new] == 0 or np.sign(Game.get_board()[move.x_new][move.y_new]) != player:
-            return True
-    return False
-
-
-def bishop_move(player, move):
-    diff_x = move.x_new - move.x
-    diff_y = move.y_new - move.y
-    if abs(diff_x) == abs(diff_y) and diff_x != 0:
-        x = np.sign(diff_x)
-        y = np.sign(diff_y)
-        for i in range(1, abs(diff_x)):
-            if Game.get_board()[move.x + i * x][move.y + i * y] != 0:
-                return False
-        if Game.get_board()[move.x_new][move.y_new] == 0 or np.sign(Game.get_board()[move.x_new][move.y_new]) != player:
-            return True
-    return False
-
-
-def queen_move(player, move):
-    diff_x = move.x_new - move.x
-    diff_y = move.y_new - move.y
-    if abs(diff_x) < 2 and abs(diff_y) < 2 and (diff_x != 0 or diff_y != 0):
-        if Game.get_board()[move.x_new][move.y_new] == 0 or np.sign(Game.get_board()[move.x_new][move.y_new]) != player:
-            return True
-
-    return False
-
-
-def king_move(player, move):
-    diff_x = move.x_new - move.x
-    diff_y = move.y_new - move.y
-    if abs(diff_x) < 2 and abs(diff_y) < 2 and (diff_x != 0 or diff_y != 0):
-        if Game.get_board()[move.x_new][move.y_new] == 0 or np.sign(Game.get_board()[move.x_new][move.y_new]) != player:
-            return True
-    return False
 
 
 if __name__ == '__main__':
