@@ -1,5 +1,5 @@
 # Chess-AI
-Simple Chess program written in Python
+Simple Chess program written in Python using PyQt5
 ========================
 
 **Requirements**:  
@@ -22,4 +22,4 @@ Simple Chess program written in Python
 - Maybe a network feature might be nice as well
 - UI might be also make sense ¯\_(ツ)_/¯
 
-![Chess](http://home.anton-lammert.de/wordpress/wp-content/uploads/2021/03/chess.png) 
+![Chess](images/chess.png) 

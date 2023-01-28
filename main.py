@@ -374,8 +374,9 @@ class ChessWindow(QMainWindow):
                 print('Enemy turn')
                 if not Game.finished(Game.get_board(), current_player):
                     print('Evaluating best move')
+                    start_time = time.time()
                     best_move = recursive_evaluation(Game.get_board(), current_player, current_player)
-                    print('Best move found')
+                    print('Best move found in %s seconds' % (time.time() - start_time))
                     print('From: ', best_move.x, best_move.y, ', To:', best_move.x_new, best_move.y_new)
                     print('From: ', best_move.x2, best_move.y2, ', To:', best_move.x2_new, best_move.y2_new)
                     self.move_figure(best_move)
@@ -496,6 +497,9 @@ def main():
     global board_dimension
     global offset_x
     global offset_y
+
+    # generate training samples / load training samples
+    # train on training data
 
     # create PyQt application
     app = QApplication(sys.argv)
