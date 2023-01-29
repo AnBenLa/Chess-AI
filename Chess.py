@@ -7,25 +7,25 @@ from copy import copy, deepcopy
 
 class Chess(Game):
     last_board = [
-        [2, 1, 0, 0, 0, 0, -1, -2],
-        [3, 1, 0, 0, 0, 0, -1, -3],
-        [4, 1, 0, 0, 0, 0, -1, -4],
-        [5, 1, 0, 0, 0, 0, -1, -5],
-        [6, 1, 0, 0, 0, 0, -1, -6],
-        [4, 1, 0, 0, 0, 0, -1, -4],
-        [3, 1, 0, 0, 0, 0, -1, -3],
-        [2, 1, 0, 0, 0, 0, -1, -2]
+        [-2, -1, 0, 0, 0, 0, 1, 2],
+        [-3, -1, 0, 0, 0, 0, 1, 3],
+        [-4, -1, 0, 0, 0, 0, 1, 4],
+        [-5, -1, 0, 0, 0, 0, 1, 5],
+        [-6, -1, 0, 0, 0, 0, 1, 6],
+        [-4, -1, 0, 0, 0, 0, 1, 4],
+        [-3, -1, 0, 0, 0, 0, 1, 3],
+        [-2, -1, 0, 0, 0, 0, 1, 2]
     ]
 
     board = [
-        [2, 1, 0, 0, 0, 0, -1, -2],
-        [3, 1, 0, 0, 0, 0, -1, -3],
-        [4, 1, 0, 0, 0, 0, -1, -4],
-        [5, 1, 0, 0, 0, 0, -1, -5],
-        [6, 1, 0, 0, 0, 0, -1, -6],
-        [4, 1, 0, 0, 0, 0, -1, -4],
-        [3, 1, 0, 0, 0, 0, -1, -3],
-        [2, 1, 0, 0, 0, 0, -1, -2]
+        [-2, -1, 0, 0, 0, 0, 1, 2],
+        [-3, -1, 0, 0, 0, 0, 1, 3],
+        [-4, -1, 0, 0, 0, 0, 1, 4],
+        [-5, -1, 0, 0, 0, 0, 1, 5],
+        [-6, -1, 0, 0, 0, 0, 1, 6],
+        [-4, -1, 0, 0, 0, 0, 1, 4],
+        [-3, -1, 0, 0, 0, 0, 1, 3],
+        [-2, -1, 0, 0, 0, 0, 1, 2]
     ]
 
 # rochade: king not in check, twer and king not move, fields inbetween not under attack
@@ -60,8 +60,7 @@ class Chess(Game):
 
     def get_valid_actions(self, current_state, current_player, depth=1):
         allowed_moves = []
-        parallel = False
-        start_time = time.time()
+        parallel = True
         for x in range(0, 8):
             for y in range(0, 8):
                 piece = current_state[x][y]
@@ -102,8 +101,6 @@ class Chess(Game):
                             allowed_moves.extend(async_result.get())
                         else:
                             allowed_moves.extend(self.queen_moves(current_player, x, y, current_state, depth))
-        #if depth == 1:
-            #print("--- %s seconds ---" % (time.time() - start_time))
         return allowed_moves
 
     def finished(self, current_state, current_player):
@@ -125,63 +122,63 @@ class Chess(Game):
         possible_states = []
 
         # move two steps ahead
-        if -1 < y + 2 * player < 8 and current_state[x][y + 1 * player] == 0 and current_state[x][y + 2 * player] == 0 and ((y == 1 and player == 1) or (y == 6 and player == -1)):
+        if -1 < y + 2 * -player < 8 and current_state[x][y + 1 * -player] == 0 and current_state[x][y + 2 * -player] == 0 and ((y == 6 and player == 1) or (y == 1 and player == -1)):
             board = deepcopy(current_state)
-            board[x][y + 2 * player] = board[x][y]
+            board[x][y + 2 * -player] = board[x][y]
             board[x][y] = 0
 
             if not self.in_check(player, board, depth):
                 possible_states.append(board)
-        if -1 < y + player < 8:
+        if -1 < y - player < 8:
             # move straight ahead
 
-            if current_state[x][y + player] == 0:
+            if current_state[x][y - player] == 0:
                 board = deepcopy(current_state)
-                if y + player == 0 or y + player == 7:
-                    board[x][y + player] = 6 * player
+                if y - player == 0 or y - player == 7:
+                    board[x][y - player] = 6 * player
                 else:
-                    board[x][y + player] = board[x][y]
+                    board[x][y - player] = board[x][y]
                 board[x][y] = 0
                 if not self.in_check(player, board, depth):
                     possible_states.append(board)
 
             # move one step ahead and one to the right
-            if -1 < x + 1 < 8 and np.sign(current_state[x + 1][y + player]) != player and current_state[x + 1][y + player] != 0:
+            if -1 < x + 1 < 8 and np.sign(current_state[x + 1][y - player]) != player and current_state[x + 1][y - player] != 0:
                 board = deepcopy(current_state)
-                if y + player == 0 or y + player == 7:
-                    board[x + 1][y + player] = 6 * player
+                if y - player == 0 or y - player == 7:
+                    board[x + 1][y - player] = 6 * player
                 else:
-                    board[x + 1][y + player] = board[x][y]
+                    board[x + 1][y - player] = board[x][y]
                 board[x][y] = 0
                 if not self.in_check(player, board, depth):
                     possible_states.append(board)
 
             # move one step and one to the right after en passant
             if -1 < x + 1 < 8 and np.sign(current_state[x + 1][y]) != player and np.abs(current_state[x + 1][y]) == 1 \
-                    and np.sign(self.last_board[x + 1][y + 2 * player]) != player and np.abs(self.last_board[x + 1][y + 2 * player]) == 1:
+                    and np.sign(self.last_board[x + 1][y + 2 * -player]) != player and np.abs(self.last_board[x + 1][y + 2 * -player]) == 1:
                 board = deepcopy(current_state)
-                board[x + 1][y + player] = board[x][y]
+                board[x + 1][y - player] = board[x][y]
                 board[x][y] = 0
                 board[x + 1][y] = 0
                 if not self.in_check(player, board, depth):
                     possible_states.append(board)
 
             # move one step ahead and one to the left
-            if -1 < x - 1 < 8 and np.sign(current_state[x - 1][y + player]) != player and current_state[x - 1][y + player] != 0:
+            if -1 < x - 1 < 8 and np.sign(current_state[x - 1][y - player]) != player and current_state[x - 1][y - player] != 0:
                 board = deepcopy(current_state)
-                if y + player == 0 or y + player == 7:
-                    board[x - 1][y + player] = 6 * player
+                if y - player == 0 or y - player == 7:
+                    board[x - 1][y - player] = 6 * player
                 else:
-                    board[x - 1][y + player] = board[x][y]
+                    board[x - 1][y - player] = board[x][y]
                 board[x][y] = 0
                 if not self.in_check(player, board, depth):
                     possible_states.append(board)
 
             # move one step and one to the right after en passant
             if -1 < x + 1 < 8 and np.sign(current_state[x - 1][y]) != player and np.abs(current_state[x - 1][y]) == 1 \
-                    and np.sign(self.last_board[x - 1][y + 2 * player]) != player and np.abs(self.last_board[x - 1][y + 2 * player]) == 1:
+                    and np.sign(self.last_board[x - 1][y + 2 * -player]) != player and np.abs(self.last_board[x - 1][y + 2 * -player]) == 1:
                 board = deepcopy(current_state)
-                board[x - 1][y + player] = board[x][y]
+                board[x - 1][y - player] = board[x][y]
                 board[x][y] = 0
                 board[x - 1][y] = 0
                 if not self.in_check(player, board, depth):

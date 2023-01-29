@@ -158,12 +158,11 @@ class Move:
 
         if self.x2_new != -1 and self.y2_new != -1:
             new_board[self.x2_new][self.y2_new] = new_board[self.x2][self.y2]
+            new_board[self.x2][self.y2] = 0
 
-        new_board[self.x2][self.y2] = 0
-
-        if current_player == 1 and self.y_new == 7 and new_board[self.x][self.y] == 1:
+        if current_player == 1 and self.y_new == 0 and new_board[self.x][self.y] == 1:
             new_board[self.x_new][self.y_new] = 6
-        elif current_player == -1 and self.y_new == 0 and new_board[self.x][self.y] == -1:
+        elif current_player == -1 and self.y_new == 7 and new_board[self.x][self.y] == -1:
             new_board[self.x_new][self.y_new] = -6
         else:
             new_board[self.x_new][self.y_new] = new_board[self.x][self.y]
@@ -175,6 +174,9 @@ class DragFigure(QSvgWidget):
     def __init__(self, source):
         super().__init__(source)
         self.figure_size = int(board_dimension/8)
+
+    def customeMove(self, posX, posY):
+        self.setGeometry(posX, posY, self.figure_size, self.figure_size)
 
     def mousePressEvent(self, event):
         self.__mousePressPos = None
@@ -215,30 +217,38 @@ class DragFigure(QSvgWidget):
             old_board = deepcopy(Game.get_last_board())
             new_board = deepcopy(Game.get_board())
 
-            if old_board[x + 1][y + 2 * current_player] == -current_player and new_board[x + 1][y] == -current_player:
-                move = Move(x, y, x_new, y_new, x + 1, y, -1, -1)
-            elif old_board[x - 1][y + 2 * current_player] == -current_player and new_board[x - 1][y] == -current_player:
-                move = Move(x, y, x_new, y_new, x - 1, y, -1, -1)
+            y_diff = abs(y_new - y)
+            # check for capturing en passant
+            if y_diff == 2 and abs(old_board[x][y]) == 1:
+                if old_board[x + 1][y - 2 * current_player] == -current_player and new_board[x + 1][y] == -current_player:
+                    move = Move(x, y, x_new, y_new, x + 1, y - 2 * current_player, x + 1, y -current_player)
+                elif old_board[x - 1][y - 2 * current_player] == -current_player and new_board[x - 1][y] == -current_player:
+                    move = Move(x, y, x_new, y_new, x - 1, y - 2 * current_player, x - 1, y -current_player)
+                else:
+                    move = Move(x, y, x_new, y_new, -1, -1, -1, -1)
             else:
-                move = Move(x, y, x_new, y_new, x_new, y_new, -1, -1)
+                move = Move(x, y, x_new, y_new, -1, -1, -1, -1)
+
+            print('From: ', move.x, move.y, ', To:', move.x_new, move.y_new)
+            print('From: ', move.x2, move.y2, ', To:', move.x2_new, move.y2_new)
 
             valid_moves = Game.get_valid_actions(new_board, current_player)
 
-
             pawn_to_queen = False
-            if -1 < move.x2_new < 8 and -1 < move.y2_new < 8:
-                new_board[move.x2_new][move.y2_new] = new_board[move.x2][move.y2]
-            else:
-                new_board[move.x2][move.y2] = 0
 
-            if current_player == 1 and move.y_new == 7 and new_board[move.x][move.y] == 1:
+            if -1 < move.x2_new < 8 and -1 < move.y2_new < 8:
+                # en passant
+                new_board[move.x2_new][move.y2_new] = new_board[move.x2][move.y2]
+                new_board[move.x_new][move.y_new] = 0
+            elif current_player == 1 and move.y_new == 0 and new_board[move.x][move.y] == 1:
                 new_board[move.x_new][move.y_new] = 6
                 pawn_to_queen = True
-            elif current_player == -1 and move.y_new == 0 and new_board[move.x][move.y] == -1:
+            elif current_player == -1 and move.y_new == 7 and new_board[move.x][move.y] == -1:
                 new_board[move.x_new][move.y_new] = -6
                 pawn_to_queen = True
             else:
-                new_board[move.x_new][move.y_new] = new_board[move.x][move.y]
+                new_board[move.x_new][move.y_new] = old_board[move.x][move.y]
+
             new_board[move.x][move.y] = 0
 
             valid_move = False
@@ -246,6 +256,9 @@ class DragFigure(QSvgWidget):
                 if action == new_board:
                     print('Valid Move!')
                     valid_move = True
+
+            if pawn_to_queen:
+                print('pawn to queen')
 
             if valid_move:
                 current_board = Game.get_board()
@@ -255,6 +268,14 @@ class DragFigure(QSvgWidget):
                         tmp = self.parent().parent().figures
                         tmp[move.x2][move.y2].move(-10000, -1000)
                         tmp[move.x2][move.y2] = 0
+                        print('Removed piece on new position')
+
+                if move.x_new != -1 and move.y_new != -1:
+                    goal_value = current_board[move.x_new][move.y_new]
+                    if np.sign(goal_value) != current_player and goal_value != 0:
+                        tmp = self.parent().parent().figures
+                        tmp[move.x_new][move.y_new].move(-10000, -1000)
+                        tmp[move.x_new][move.y_new] = 0
                         print('Removed piece on new position')
 
                 goal_position = QPoint(move.x_new * self.figure_size + offset_x, move.y_new * self.figure_size + offset_y)
@@ -420,15 +441,14 @@ class ChessWindow(QMainWindow):
             new_board = deepcopy(Game.get_board())
             pawn_to_queen = False
 
-            if -1 < move.x2_new < 8 and -1 < move.y2_new < 8:
+            if -1 < move.x2_new < 8 and -1 < move.y2_new < 8 and -1 < move.x2 < 8 and -1 < move.y2 < 8:
                 new_board[move.x2_new][move.y2_new] = new_board[move.x2][move.y2]
-            elif -1 < move.x2 < 8 and -1 < move.y2 < 8:
                 new_board[move.x2][move.y2] = 0
 
-            if current_player == 1 and move.y_new == 7 and new_board[move.x][move.y] == 1:
+            if current_player == 1 and move.y_new == 0 and new_board[move.x][move.y] == 1:
                 new_board[move.x_new][move.y_new] = 6
                 pawn_to_queen = True
-            elif current_player == -1 and move.y_new == 0 and new_board[move.x][move.y] == -1:
+            elif current_player == -1 and move.y_new == 7 and new_board[move.x][move.y] == -1:
                 new_board[move.x_new][move.y_new] = -6
                 pawn_to_queen = True
             else:
@@ -444,11 +464,20 @@ class ChessWindow(QMainWindow):
                 if move.x2 != -1 and move.y2 != -1:
                     goal_value = Game.get_board()[move.x2][move.y2]
                     if np.sign(goal_value) != current_player and goal_value != 0:
-                        self.figures[move.x2][move.y2].move(-10000, -1000)
+                        self.figures[move.x2][move.y2].setGeometry(-10000, -10000, self.figure_size, self.figure_size)
                         self.figures[move.x2][move.y2] = 0
 
                 goal_position = QPoint(move.x_new * self.figure_size + offset_x, move.y_new * self.figure_size + offset_y)
+
+                if move.x_new != -1 and move.y_new != -1 and self.figures[move.x_new][move.y_new] != 0:
+                    goal_value = Game.get_board()[move.x_new][move.y_new]
+                    if np.sign(goal_value) != current_player and goal_value != 0:
+                        self.figures[move.x_new][move.y_new].setGeometry(-10000, -10000, self.figure_size, self.figure_size)
+                        self.figures[move.x_new][move.y_new] = 0
+
+                initial_board = Game.get_board()
                 move.execute_move()
+                current_board = Game.get_board()
 
                 if pawn_to_queen:
                     self.figures[move.x][move.y].load('images/Chess_qlt45.svg')
@@ -462,6 +491,8 @@ class ChessWindow(QMainWindow):
                     self.centralWidget().childAt(QPoint(board_dimension + offset_x + 50, offset_y)).setText('Current player: White')
                 else:
                     self.centralWidget().childAt(QPoint(board_dimension + offset_x + 50, offset_y)).setText('Current player: Red')
+            else:
+                print('Invalid move! Could not find board state that corresponds to current move!')
         else:
             print('Invalid move!')
 
